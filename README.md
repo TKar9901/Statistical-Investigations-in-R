@@ -1,2 +1,1 @@
-# Uni-Y1-Stats-Coursework-2
- 
+# Statistical Investigations and Write-up Coursework 
