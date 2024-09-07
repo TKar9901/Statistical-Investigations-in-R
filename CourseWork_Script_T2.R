@@ -1,0 +1,179 @@
+### MTH1004 CW Report 2
+## SETUP
+load("MTH1004T2CW.RData")
+library(tidyverse)
+
+
+### REPORT 1
+## PART A
+head(Rainfall)
+mu = mean(Rainfall$Excess)
+sigma = sd(Rainfall$Excess)
+sum(is.na(Rainfall$Excess)) #check for unusable rows
+n = length(Rainfall$Excess)
+
+ggplot(Rainfall) +
+  geom_point(aes(x = 1:145, y = Excess)) +
+  labs(x = "Day", y = "Excess Rainfall (mm)")
+
+# considering exponential model via method of moments
+lambda = 1/mu
+
+# considering gamma model via method of moments
+alpha = mu^2/sigma^2
+beta = mu/sigma^2
+
+# visualizing both distributions superimposed on sample data
+ggplot(Rainfall) +
+  geom_histogram(aes(x = Excess, y = ..density..), bins = 40) +
+  stat_function(geom="line", fun=dexp, args = list(rate=lambda),
+                linewidth = 1) +
+  stat_function(geom="line", fun=dgamma, args = list(shape=alpha, rate=beta),
+                linewidth = 1, colour = "red") +
+  lims(y=c(0, 0.05)) +
+  labs(x="Excess Rainfall (mm)", y="Density")
+
+# q-q plots to determine which of exponential and gamma models fit better
+ggplot(Rainfall, aes(sample = Excess)) +
+  stat_qq(distribution = qexp, dparams = list(rate=lambda)) +
+  stat_qq(distribution = qgamma, dparams = list(shape=alpha, rate=beta),
+          colour="red") +
+  geom_abline(intercept=0, slope=1) +
+  labs(x="Model quantiles", y="Sample quantiles (mm)")
+
+# standard error by simulation for gamma dist params as it is the better fit
+a = numeric(10000)
+b = numeric(10000)
+
+for(i in 1:10000) {
+  y = rgamma(n, alpha, beta)
+  a[i] = mean(y)^2/sd(y)^2
+  b[i] = mean(y)/sd(y)^2
+}
+
+st_error_a = sd(a)
+st_error_b = sd(b)
+
+ggplot() +
+  geom_histogram(aes(x=a), bins=30) +
+  geom_vline(xintercept=alpha, colour="red") +
+  labs(x="Alpha", y="Count in Simulation")
+ggplot() +
+  geom_histogram(aes(x=b), bins=30) +
+  geom_vline(xintercept=beta, colour="red") +
+  labs(x="Beta", y="Count in Simulation")
+
+
+## PART B
+# considering given model via method of moments
+scale = (0.5*mu)*(1+((mu^2)/sigma^2))
+shape = 0.5-((mu^2)/(2*(sigma^2)))
+
+# visualizing distribution superimposed on sample data
+ggplot(Rainfall) +
+  geom_histogram(aes(x = Excess, y = ..density..), bins = 40) +
+  stat_function(geom="line", fun=dmodel, args = list(scale=scale, shape=shape),
+                linewidth = 1, colour="blue") +
+  lims(y=c(0, 0.055)) +
+  labs(x="Excess Rainfall (mm)", y="Density")
+
+# observing q-q plot with the given model compared with previous tries
+ggplot(Rainfall, aes(sample=Excess)) +
+  stat_qq(distribution = qexp, dparams = list(rate=lambda)) +
+  stat_qq(distribution = qgamma, dparams = list(shape=alpha, rate=beta),
+          colour="red") +
+  stat_qq(distribution = qmodel, dparams = list(scale=scale, shape=shape),
+          colour="blue") +
+  geom_abline(intercept=0, slope=1) +
+  labs(x="Model quantiles", y="Sample quantiles (mm)")
+
+# finding standard error by simulation for the given model
+s = numeric(10000)
+g = numeric(10000)
+
+for(i in 1:10000) {
+  y = rmodel(n, scale=scale, shape=shape)
+  s[i] = (0.5*mean(y))*(1+((mean(y)^2)/sd(y)^2))
+  g[i] = 0.5-((mean(y)^2)/(2*(sd(y)^2)))
+}
+
+st_error_s = sd(s)
+st_error_g = sd(g)
+
+ggplot() +
+  geom_histogram(aes(x=s), bins=40) +
+  geom_vline(xintercept=scale, colour="red") +
+  labs(x="Scale", y="Count in Simulation")
+
+ggplot() +
+  geom_histogram(aes(x=g), bins=40) +
+  geom_vline(xintercept=shape, colour="red") +
+  labs(x="Shape", y="Count in Simulation")
+
+
+## PART C
+# finding m-year return level x with the given model
+m = 10
+p = 0.01
+
+prob = 1/(365*m*p)
+
+x_minus_25 = qgamma(1-prob, shape=alpha, rate=beta)
+x = x_minus_25 + 25
+
+
+
+### REPORT 2
+## PART A
+head(Antibiotic)
+sum(is.na(Antibiotic$Outcome)) #check for unusable rows
+n = length(Antibiotic$Outcome)
+
+ggplot(Antibiotic) +
+  geom_bar(aes(x=Outcome, y=..prop..)) +
+  labs(x = "Outcome", y = "Proportion")
+
+# estimating parameter p for binomial dist via method of moments
+p = sum(Antibiotic$Outcome==1)/n
+
+# due to large n and large p, this  dist has the features:
+# (when approximating to normal)
+muBin = n*p
+sigmaBin = sqrt(n*p*(1-p))
+
+# finding approx. 95% confidence interval for the mean by standardizing
+# this binomial dist to normal
+interval = muBin + qnorm(c(0.025, 0.975))*sigmaBin/sqrt(n)
+
+# this constitutes the following proportions of the sample
+proportion_as_percent = interval/n * 100
+
+
+## PART B
+# repeating the above analysis per hospital individually
+hospAdata = Antibiotic %>%
+  filter(Hospital == "A") %>%
+  select(Outcome)
+
+nA = length(hospAdata$Outcome)
+pA = sum(hospAdata$Outcome==1)/nA
+
+muBinA = nA*pA
+sigmaBinA = nA*pA*(1-pA)
+
+intervalA = muBinA + qnorm(c(0.025, 0.975))*sigmaBinA/sqrt(nA)
+prop_as_percentA = intervalA/nA * 100
+
+
+hostBdata = Antibiotic %>%
+  filter(Hospital == "B") %>%
+  select(Outcome)
+
+nB = length(hostBdata$Outcome)
+pB = sum(hostBdata$Outcome==1)/nB
+
+muBinB = nB*pB
+sigmaBinB = nB*pB*(1-pB)
+
+intervalB = muBinB + qnorm(c(0.025, 0.975))*sigmaBinB/sqrt(nB)
+prop_as_percentB = intervalB/nB * 100
